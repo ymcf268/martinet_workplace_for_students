@@ -49,7 +49,12 @@
       <div style="margin-top:12px" class="muted small">Quick links</div>
       <div style="margin-top:8px">
         <a href="index.html" class="btn">Back to register</a>
+        <!-- Private chat opener -->
+        <button id="privateChatBtn" class="btn" style="margin-left:8px">Private Chat</button>
       </div>
+
+      <div style="margin-top:12px" class="muted small">Students (class)</div>
+      <div id="classMembersList" style="margin-top:8px; max-height:140px; overflow:auto"></div>
     </aside>
   </main>
 
@@ -66,18 +71,36 @@
     </div>
   </div>
 
+  <!-- Private chat modal (site-wide) -->
+  <div id="privateChatModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-card card" style="max-width:560px; width:100%">
+      <div class="row space">
+        <div>
+          <div class="h3">Private Chat</div>
+          <div class="muted small">Choose a student to chat with (site-wide)</div>
+        </div>
+        <div>
+          <button id="closePrivateChat" class="btn">Close</button>
+        </div>
+      </div>
+
+      <div style="margin-top:12px; display:flex; gap:8px; align-items:center;">
+        <select id="privateChatSelect" class="input" style="flex:1"></select>
+        <button id="refreshStudentsBtn" class="btn">Refresh</button>
+      </div>
+
+      <div id="privateChatMessages" class="messages" style="margin-top:12px; max-height:300px; overflow:auto"></div>
+
+      <div class="chat-input" style="margin-top:8px">
+        <input id="privateChatInput" class="input" placeholder="Message..." />
+        <button id="privateChatSend" class="btn primary">Send</button>
+      </div>
+
+      <div style="margin-top:10px" class="muted small">All students on the site</div>
+      <div id="allStudentsList" style="margin-top:8px; max-height:140px; overflow:auto"></div>
+    </div>
+  </div>
+
   <script src="class.js"></script>
 </body>
 </html>
-<button id="privateChatBtn" class="btn secondary">Private Chat</button>
-
-<div id="privateChatModal" class="modal hidden">
-  <div class="modal-content">
-    <span id="closePrivateChat" class="close">&times;</span>
-    <h3>Private Chat</h3>
-    <select id="privateChatSelect"></select>
-    <div id="privateChatMessages" class="chat-window"></div>
-    <input id="privateChatInput" class="input" placeholder="Message...">
-    <button id="privateChatSend" class="btn primary">Send</button>
-  </div>
-</div>
