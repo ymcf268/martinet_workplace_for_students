@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Martinet Work place — Class</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="dark">
+
+  <header class="topbar card">
+    <div>
+      <div class="muted small">Class</div>
+      <div id="classTitle" class="h2">9vg2</div>
+      <div class="muted small">Signed in as <span id="userName"></span></div>
+    </div>
+
+    <div class="row">
+      <input id="weekPicker" type="date" class="input small" title="Jump to week" />
+      <button id="openMonth" class="btn">Month</button>
+      <button id="logout" class="btn">Logout</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="card main-col" aria-label="Week calendar">
+      <div class="calendar-grid">
+        <div class="hours">
+          <!-- hours injected by JS -->
+        </div>
+
+        <div class="days" id="weekContainer" role="grid" aria-label="Week days">
+          <!-- day columns rendered by JS -->
+        </div>
+      </div>
+
+      <div id="postsList" class="posts-list"></div>
+    </section>
+
+    <aside class="card side-col">
+      <div class="muted small">Class chat</div>
+      <div id="classChat" class="messages" aria-live="polite"></div>
+
+      <div class="chat-input">
+        <input id="classChatInput" class="input" placeholder="Say something to class..." />
+        <button id="classChatSend" class="btn primary">Send</button>
+      </div>
+
+      <div style="margin-top:12px" class="muted small">Quick links</div>
+      <div style="margin-top:8px">
+        <a href="index.html" class="btn">Back to register</a>
+      </div>
+    </aside>
+  </main>
+
+  <!-- Month modal -->
+  <div id="monthModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-card card">
+      <div class="row space">
+        <div class="h3">Month</div>
+        <div>
+          <button id="closeMonth" class="btn">Close</button>
+        </div>
+      </div>
+      <div id="monthGrid" class="month-grid"></div>
+    </div>
+  </div>
+
+  <script src="class.js"></script>
+</body>
+</html>
+<button id="privateChatBtn" class="btn secondary">Private Chat</button>
+
+<div id="privateChatModal" class="modal hidden">
+  <div class="modal-content">
+    <span id="closePrivateChat" class="close">&times;</span>
+    <h3>Private Chat</h3>
+    <select id="privateChatSelect"></select>
+    <div id="privateChatMessages" class="chat-window"></div>
+    <input id="privateChatInput" class="input" placeholder="Message...">
+    <button id="privateChatSend" class="btn primary">Send</button>
+  </div>
+</div>
