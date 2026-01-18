@@ -32,11 +32,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const userObj = { name, class: cls };
     localStorage.setItem('mw_user', JSON.stringify(userObj));
 
-    // ensure class data exists
+    // ensure class data exists and add this user to members
     const dataKey = 'mw_data';
     const data = JSON.parse(localStorage.getItem(dataKey) || '{}');
     if(!data.classes) data.classes = {};
-    if(!data.classes[cls]) data.classes[cls] = { posts: [], classChat: [], days: {}, privateChats:{} };
+    if(!data.privateChats) data.privateChats = {};
+    if(!data.classes[cls]) data.classes[cls] = { posts: [], classChat: [], days: {}, privateChats:{}, members: [] };
+    if(!Array.isArray(data.classes[cls].members)) data.classes[cls].members = [];
+    if(!data.classes[cls].members.includes(name)) data.classes[cls].members.push(name);
+
     localStorage.setItem(dataKey, JSON.stringify(data));
 
     location.href = 'class.html';
