@@ -1,4 +1,5 @@
-// class.js
+// class.js (updated to add site-wide private chat and 2s send delay)
+// + storage-event driven live updates for class chat (per-class)
 (function(){
   const HOUR_START = 8;
   const HOUR_COUNT = 11; // 8..18 inclusive
@@ -11,9 +12,17 @@
   if(!user) return location.href = 'index.html';
 
   const dataKey = 'mw_data';
-  const data = read(dataKey) || { classes: {} };
+  const data = read(dataKey) || { classes: {}, privateChats: {} };
+  if(!data.privateChats) data.privateChats = {};
   const clsName = user.class || '9vg2';
-  const cls = data.classes[clsName] || (data.classes[clsName] = { posts: [], classChat: [], days: {} });
+  if(!data.classes) data.classes = {};
+  const cls = data.classes[clsName] || (data.classes[clsName] = { posts: [], classChat: [], days: {}, privateChats:{}, members: [] });
+
+  // ensure current user is in member list
+  if(!Array.isArray(cls.members)) cls.members = [];
+  if(!cls.members.includes(user.name)) cls.members.push(user.name);
+  // persist if needed
+  write(dataKey, data);
 
   // DOM
   const classTitle = document.getElementById('classTitle');
@@ -29,6 +38,19 @@
   const monthGrid = document.getElementById('monthGrid');
   const closeMonth = document.getElementById('closeMonth');
   const logout = document.getElementById('logout');
+
+  // private chat DOM
+  const privateChatBtn = document.getElementById('privateChatBtn');
+  const privateChatModal = document.getElementById('privateChatModal');
+  const closePrivateChat = document.getElementById('closePrivateChat');
+  const privateChatSelect = document.getElementById('privateChatSelect');
+  const privateChatMessages = document.getElementById('privateChatMessages');
+  const privateChatInput = document.getElementById('privateChatInput');
+  const privateChatSend = document.getElementById('privateChatSend');
+  const refreshStudentsBtn = document.getElementById('refreshStudentsBtn');
+  const allStudentsList = document.getElementById('allStudentsList');
+
+  const classMembersList = document.getElementById('classMembersList');
 
   classTitle.textContent = clsName;
   userName.textContent = user.name;
@@ -229,15 +251,56 @@
     classChat.scrollTop = classChat.scrollHeight;
   }
 
+  // show class members in aside
+  function renderClassMembers(){
+    classMembersList.innerHTML = '';
+    const members = cls.members || [];
+    if(members.length === 0) { classMembersList.innerHTML = '<div class="muted small">No students yet.</div>'; return; }
+    members.forEach(name=>{
+      const d = document.createElement('div');
+      d.textContent = name;
+      d.style.padding = '6px 4px';
+      d.style.borderBottom = '1px solid rgba(255,255,255,0.02)';
+      classMembersList.appendChild(d);
+    });
+  }
+
+  // send class chat (delay write by 2s)
   classChatSend.addEventListener('click', ()=>{
     const txt = (classChatInput.value || '').trim(); if(!txt) return;
-    const now = new Date().toLocaleString();
-    cls.classChat.push({ user: user.name, text: txt, time: now });
-    write(dataKey, data);
+    const now = new Date();
+    const displayTime = now.toLocaleString();
+    // create entry but don't write immediately
+    const entry = { user: user.name, text: txt, time: displayTime };
     classChatInput.value = '';
-    renderClassChat();
-    renderRecentPosts();
-    renderPostsInWeek();
+
+    // show a local "sending..." hint (optional)
+    const sendingEl = document.createElement('div');
+    sendingEl.style.marginBottom='8px';
+    sendingEl.innerHTML = `<div style="font-size:12px;color:var(--muted)">Sending... • ${user.name}</div><div style="opacity:0.8">${txt}</div>`;
+    classChat.appendChild(sendingEl);
+    classChat.scrollTop = classChat.scrollHeight;
+
+    setTimeout(()=>{
+      // write to storage
+      const cur = read(dataKey) || { classes: {}, privateChats: {} };
+      if(!cur.classes[clsName]) cur.classes[clsName] = { posts: [], classChat: [], days: {}, privateChats:{}, members: [] };
+      cur.classes[clsName].classChat = cur.classes[clsName].classChat || [];
+      cur.classes[clsName].classChat.push(entry);
+      // ensure member exists
+      if(!cur.classes[clsName].members) cur.classes[clsName].members = [];
+      if(!cur.classes[clsName].members.includes(user.name)) cur.classes[clsName].members.push(user.name);
+      write(dataKey, cur);
+      // re-render from storage (will remove sendingEl when render runs)
+      const nd = read(dataKey);
+      // update local data objects
+      Object.assign(data, nd);
+      if(data.classes && data.classes[clsName]) Object.assign(cls, data.classes[clsName]);
+      renderClassChat();
+      renderRecentPosts();
+      renderPostsInWeek();
+      renderClassMembers();
+    }, 2000);
   });
   classChatInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter') classChatSend.click(); });
 
@@ -268,7 +331,139 @@
     }
   }
 
-  // live update observer (poll)
+  // PRIVATE CHAT: helpers
+  function allStudents(){
+    // collect members arrays across classes, fallback to scanning chat/post authors
+    const set = new Set();
+    if(data.classes){
+      Object.keys(data.classes).forEach(cn=>{
+        const c = data.classes[cn];
+        if(Array.isArray(c.members)){
+          c.members.forEach(n => { if(n) set.add(n); });
+        }
+        (c.classChat || []).forEach(m => m.user && set.add(m.user));
+        (c.posts || []).forEach(p => p.user && set.add(p.user));
+        if(c.days){
+          Object.values(c.days).forEach(day=>{
+            (day.chat || []).forEach(m => m.user && set.add(m.user));
+            (day.posts || []).forEach(p => p.user && set.add(p.user));
+          });
+        }
+      });
+    }
+    // ensure current user present
+    set.add(user.name);
+    return Array.from(set).sort((a,b)=> a.localeCompare(b));
+  }
+
+  function makePrivateKey(a,b){
+    if(!a || !b) return null;
+    return [a,b].sort().join('|');
+  }
+
+  function loadPrivateChatWith(partner){
+    if(!partner) { privateChatMessages.innerHTML = '<div class="muted small">Select a student to chat with.</div>'; return; }
+    const key = makePrivateKey(user.name, partner);
+    const cur = read(dataKey) || { privateChats:{} };
+    const conv = (cur.privateChats && cur.privateChats[key]) ? cur.privateChats[key] : [];
+    privateChatMessages.innerHTML = '';
+    if(conv.length === 0) privateChatMessages.innerHTML = '<div class="muted small">No private messages yet.</div>';
+    conv.forEach(m=>{
+      const p = document.createElement('div'); p.style.marginBottom='8px';
+      p.innerHTML = `<div style="font-size:12px;color:var(--muted)">${m.time} • ${m.user}</div><div>${m.text}</div>`;
+      privateChatMessages.appendChild(p);
+    });
+    privateChatMessages.scrollTop = privateChatMessages.scrollHeight;
+  }
+
+  function populatePrivateSelect(){
+    const students = allStudents();
+    privateChatSelect.innerHTML = '';
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = '-- choose student --';
+    privateChatSelect.appendChild(placeholder);
+    students.forEach(name => {
+      if(name === user.name) return; // skip self option
+      const opt = document.createElement('option');
+      opt.value = name; opt.textContent = name;
+      privateChatSelect.appendChild(opt);
+    });
+  }
+
+  function renderAllStudentsList(){
+    allStudentsList.innerHTML = '';
+    const students = allStudents();
+    if(students.length === 0){ allStudentsList.innerHTML = '<div class="muted small">No students yet.</div>'; return; }
+    students.forEach(name=>{
+      const el = document.createElement('div');
+      el.style.padding='6px 4px';
+      el.style.borderBottom='1px solid rgba(255,255,255,0.02)';
+      el.style.cursor = 'pointer';
+      el.textContent = name + (name === user.name ? ' (you)' : '');
+      el.addEventListener('click', ()=> {
+        if(name === user.name) return;
+        privateChatSelect.value = name;
+        loadPrivateChatWith(name);
+      });
+      allStudentsList.appendChild(el);
+    });
+  }
+
+  // open private chat modal
+  privateChatBtn.addEventListener('click', ()=>{
+    populatePrivateSelect();
+    renderAllStudentsList();
+    privateChatModal.style.display = 'grid';
+    // clear old messages placeholder
+    privateChatMessages.innerHTML = '<div class="muted small">Select a student to chat with.</div>';
+  });
+  closePrivateChat.addEventListener('click', ()=> privateChatModal.style.display = 'none');
+  refreshStudentsBtn.addEventListener('click', ()=> { populatePrivateSelect(); renderAllStudentsList(); });
+
+  privateChatSelect.addEventListener('change', (e)=>{
+    const partner = e.target.value || null;
+    loadPrivateChatWith(partner);
+  });
+
+  // send private message (2s delay)
+  privateChatSend.addEventListener('click', ()=>{
+    const partner = privateChatSelect.value;
+    const txt = (privateChatInput.value || '').trim();
+    if(!partner) return alert('Choose a student to chat with.');
+    if(!txt) return;
+    privateChatInput.value = '';
+
+    // show local sending hint
+    const sendingEl = document.createElement('div');
+    sendingEl.style.marginBottom='8px';
+    sendingEl.innerHTML = `<div style="font-size:12px;color:var(--muted)">Sending... • ${user.name}</div><div style="opacity:0.8">${txt}</div>`;
+    privateChatMessages.appendChild(sendingEl);
+    privateChatMessages.scrollTop = privateChatMessages.scrollHeight;
+
+    setTimeout(()=>{
+      const key = makePrivateKey(user.name, partner);
+      const cur = read(dataKey) || { privateChats: {} , classes: {} };
+      if(!cur.privateChats) cur.privateChats = {};
+      cur.privateChats[key] = cur.privateChats[key] || [];
+      const entry = { user: user.name, text: txt, time: (new Date()).toLocaleString() };
+      cur.privateChats[key].push(entry);
+      // ensure both users present as members somewhere
+      if(!cur.classes) cur.classes = {};
+      if(cur.classes[clsName] && Array.isArray(cur.classes[clsName].members) && !cur.classes[clsName].members.includes(user.name)){
+        cur.classes[clsName].members.push(user.name);
+      }
+      write(dataKey, cur);
+      // reload messages
+      loadPrivateChatWith(partner);
+      // refresh student lists
+      populatePrivateSelect();
+      renderAllStudentsList();
+    }, 2000);
+  });
+  privateChatInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter') privateChatSend.click(); });
+
+  // live update observer (poll) - kept as fallback
   let last = JSON.stringify(read(dataKey));
   setInterval(()=>{
     const now = JSON.stringify(read(dataKey));
@@ -280,12 +475,63 @@
       renderClassChat();
       renderRecentPosts();
       renderPostsInWeek();
+      renderClassMembers();
+      // if private modal open, refresh lists and messages for selected partner
+      if(privateChatModal.style.display === 'grid'){
+        populatePrivateSelect();
+        renderAllStudentsList();
+        const partner = privateChatSelect.value;
+        if(partner) loadPrivateChatWith(partner);
+      }
     }
   }, 800);
+
+  // ---------- NEW: storage event listener for immediate cross-tab updates ----------
+  // This reacts to changes in localStorage from other tabs (more immediate than polling).
+  window.addEventListener('storage', (ev) => {
+    if(!ev) return;
+    // Only react to our data key
+    if(ev.key !== dataKey) return;
+    try {
+      const newVal = ev.newValue ? JSON.parse(ev.newValue) : null;
+      if(!newVal) return;
+      // If the class exists in the new value, compare its classChat to our current one
+      const newCls = newVal.classes && newVal.classes[clsName] ? newVal.classes[clsName] : null;
+      if(!newCls) return;
+
+      // Fast compare by JSON of classChat (fine for this use-case)
+      const oldChat = JSON.stringify(cls.classChat || []);
+      const newChat = JSON.stringify(newCls.classChat || []);
+      if(oldChat !== newChat){
+        // update local structures and render only chat (plus member list)
+        Object.assign(data, newVal);
+        if(data.classes && data.classes[clsName]) Object.assign(cls, data.classes[clsName]);
+        renderClassChat();
+        renderClassMembers();
+        // do not force full page re-render unless necessary
+      }
+
+      // Optionally update posts/members if those changed (keeps UI consistent)
+      // Compare members
+      const oldMembers = JSON.stringify(cls.members || []);
+      const newMembers = JSON.stringify(newCls.members || []);
+      if(oldMembers !== newMembers){
+        Object.assign(data, newVal);
+        if(data.classes && data.classes[clsName]) Object.assign(cls, data.classes[clsName]);
+        renderClassMembers();
+      }
+
+    } catch(e){
+      // ignore parse errors
+      // console.warn('storage parse error', e);
+    }
+  });
+  // -------------------------------------------------------------------------------
 
   // initial render
   renderWeek();
   renderClassChat();
   renderRecentPosts();
+  renderClassMembers();
 
 })();
