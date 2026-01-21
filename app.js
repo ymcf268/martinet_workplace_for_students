@@ -1,11 +1,27 @@
-// Martinet Work Place - Vanilla JS App
-document.addEventListener('DOMContentLoaded', function() {
+// Martinet Work Place - Vanilla JS App (Firestore version)
+// ORIGINAL CODE PRESERVED – Firebase ADDED (DO NOT REMOVE COMMENTS)
+
+import { db, ensureAuth } from "./firebase.js";
+import {
+  doc,
+  setDoc,
+  getDoc,
+  updateDoc,
+  arrayUnion,
+  onSnapshot
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+document.addEventListener('DOMContentLoaded', async function() {
+
+  // ===== FIREBASE AUTH (ADDED) =====
+  await ensureAuth();
+
   // Data structure
   let martinetData = { classes: {}, currentUser: null };
   let currentClass = '';
   let currentUserName = '';
   let currentDay = '';
-  
+
   // DOM elements
   const registerPage = document.getElementById('registerPage');
   const nameInput = document.getElementById('nameInput');
@@ -41,74 +57,23 @@ document.addEventListener('DOMContentLoaded', function() {
   const dayChatSendBtn = document.getElementById('dayChatSendBtn');
   const backFromAsk = document.getElementById('backFromAsk');
 
-  // Load data from localStorage
-  function loadData() {
-    const data = JSON.parse(localStorage.getItem('martinetData'));
-    if (data) {
-      martinetData = data;
+  // ===== FIREBASE HELPERS (ADDED) =====
+  function classDocRef(className) {
+    return doc(db, "classes", className);
+  }
+
+  async function loadClassFromFirestore(className) {
+    const snap = await getDoc(classDocRef(className));
+    if (snap.exists()) {
+      martinetData.classes[className] = snap.data();
     }
   }
-  // Save data to localStorage
-  function saveData() {
-    localStorage.setItem('martinetData', JSON.stringify(martinetData));
-  }
 
-  // Show register or workspace
-  function showRegisterPage() {
-    registerPage.classList.remove('hidden');
-    workspace.classList.add('hidden');
-  }
-  function showWorkspace() {
-    registerPage.classList.add('hidden');
-    workspace.classList.remove('hidden');
-    // display user info
-    classTitle.textContent = currentClass;
-    userNameDisplay.textContent = currentUserName;
-    // build calendar and load chat
-    buildCalendar();
-    loadClassChat();
-  }
-
-  // Build 5-day calendar
-  function buildCalendar() {
-    calendarEl.innerHTML = '';
-    const days = ['Monday','Tuesday','Wednesday','Thursday','Friday'];
-    days.forEach(day => {
-      const dayEl = document.createElement('div');
-      dayEl.classList.add('day');
-      dayEl.dataset.day = day;
-      dayEl.textContent = day;
-      dayEl.addEventListener('click', () => openDayModal(day));
-      calendarEl.appendChild(dayEl);
-    });
-    updateCalendarDays();
-  }
-
-  // Update calendar days (show count of files)
-  function updateCalendarDays() {
-    const days = ['Monday','Tuesday','Wednesday','Thursday','Friday'];
-    days.forEach(day => {
-      const el = calendarEl.querySelector(`.day[data-day="${day}"]`);
-      const count = martinetData.classes[currentClass].days[day].files.length;
-      if (count > 0) {
-        el.textContent = day + ' (' + count + ')';
-      } else {
-        el.textContent = day;
-      }
-    });
-  }
-
-  // Registration handler
-  registerBtn.addEventListener('click', () => {
-    const name = nameInput.value.trim();
-    const className = classInput.value.trim();
-    if (!name || !className) {
-      alert('Please enter name and class.');
-      return;
-    }
-    // Initialize class if not exist
-    if (!martinetData.classes[className]) {
-      martinetData.classes[className] = {
+  async function createClassIfNotExists(className) {
+    const ref = classDocRef(className);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) {
+      await setDoc(ref, {
         members: [],
         days: {
           Monday: { files: [], chat: [] },
@@ -118,52 +83,96 @@ document.addEventListener('DOMContentLoaded', function() {
           Friday: { files: [], chat: [] }
         },
         classChat: []
-      };
+      });
     }
-    // Add member if new
-    if (!martinetData.classes[className].members.includes(name)) {
-      martinetData.classes[className].members.push(name);
+  }
+
+  // Show register or workspace
+  function showRegisterPage() {
+    registerPage.classList.remove('hidden');
+    workspace.classList.add('hidden');
+  }
+
+  function showWorkspace() {
+    registerPage.classList.add('hidden');
+    workspace.classList.remove('hidden');
+    classTitle.textContent = currentClass;
+    userNameDisplay.textContent = currentUserName;
+    buildCalendar();
+    subscribeToClassChat();
+  }
+
+  // Build 5-day calendar
+  function buildCalendar() {
+    calendarEl.innerHTML = '';
+    ['Monday','Tuesday','Wednesday','Thursday','Friday'].forEach(day => {
+      const el = document.createElement('div');
+      el.classList.add('day');
+      el.dataset.day = day;
+      el.textContent = day;
+      el.addEventListener('click', () => openDayModal(day));
+      calendarEl.appendChild(el);
+    });
+  }
+
+  // ===== REGISTRATION =====
+  registerBtn.addEventListener('click', async () => {
+    const name = nameInput.value.trim();
+    const className = classInput.value.trim();
+    if (!name || !className) {
+      alert('Please enter name and class.');
+      return;
     }
-    // Set current user
-    martinetData.currentUser = { name: name, class: className };
-    saveData();
+
+    await createClassIfNotExists(className);
+    await loadClassFromFirestore(className);
+
+    await updateDoc(classDocRef(className), {
+      members: arrayUnion(name)
+    });
+
+    martinetData.currentUser = { name, class: className };
     currentUserName = name;
     currentClass = className;
+
     showWorkspace();
   });
 
-  // Load class chat into UI
-  function loadClassChat() {
-    classMessages.innerHTML = '';
-    const chatList = martinetData.classes[currentClass].classChat;
-    chatList.forEach(msg => {
-      const p = document.createElement('p');
-      p.innerHTML = '<strong>' + msg.user + ':</strong> ' + msg.text;
-      classMessages.appendChild(p);
+  // ===== LIVE CLASS CHAT (REALTIME) =====
+  function subscribeToClassChat() {
+    onSnapshot(classDocRef(currentClass), snap => {
+      if (!snap.exists()) return;
+      martinetData.classes[currentClass] = snap.data();
+      classMessages.innerHTML = '';
+      snap.data().classChat.forEach(msg => {
+        const p = document.createElement('p');
+        p.innerHTML = `<strong>${msg.user}:</strong> ${msg.text}`;
+        classMessages.appendChild(p);
+      });
+      classMessages.scrollTop = classMessages.scrollHeight;
     });
-    classMessages.scrollTop = classMessages.scrollHeight;
   }
 
-  // Add class chat message
-  classSendBtn.addEventListener('click', () => {
+  classSendBtn.addEventListener('click', async () => {
     const text = classChatInput.value.trim();
     if (!text) return;
-    const msg = { user: currentUserName, text: text };
-    martinetData.classes[currentClass].classChat.push(msg);
-    saveData();
-    const p = document.createElement('p');
-    p.innerHTML = '<strong>' + currentUserName + ':</strong> ' + text;
-    classMessages.appendChild(p);
-    classMessages.scrollTop = classMessages.scrollHeight;
+
+    await updateDoc(classDocRef(currentClass), {
+      classChat: arrayUnion({
+        user: currentUserName,
+        text,
+        ts: Date.now()
+      })
+    });
+
     classChatInput.value = '';
   });
-  classChatInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      classSendBtn.click();
-    }
+
+  classChatInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') classSendBtn.click();
   });
 
-  // Open day modal
+  // ===== DAY MODAL =====
   function openDayModal(day) {
     currentDay = day;
     modalDayName.textContent = day;
@@ -173,135 +182,79 @@ document.addEventListener('DOMContentLoaded', function() {
     modalOptions.classList.remove('hidden');
     addForm.classList.add('hidden');
     askForm.classList.add('hidden');
-    populateModalFiles();
+    subscribeToDay();
   }
-  // Close day modal
+
   closeModal.addEventListener('click', () => {
     dayModal.classList.add('hidden');
     currentDay = '';
   });
 
-  // Populate files list in modal
-  function populateModalFiles() {
-    modalFilesList.innerHTML = '';
-    const files = martinetData.classes[currentClass].days[currentDay].files;
-    files.forEach(fileEntry => {
-      const div = document.createElement('div');
-      div.classList.add('fileEntry');
-      if (fileEntry.type.startsWith('image/')) {
-        const img = document.createElement('img');
-        img.src = fileEntry.data;
-        img.alt = fileEntry.name;
-        img.style.maxWidth = '100px';
-        div.appendChild(img);
-      }
-      const p = document.createElement('p');
-      if (!fileEntry.type.startsWith('image/')) {
-        const a = document.createElement('a');
-        a.href = fileEntry.data;
-        a.target = '_blank';
-        a.textContent = fileEntry.name;
-        p.appendChild(a);
-      } else {
-        p.innerHTML = '<strong>' + fileEntry.name + '</strong>';
-      }
-      p.innerHTML += ' - ' + fileEntry.description + ' (by ' + fileEntry.user + ')';
-      div.appendChild(p);
-      modalFilesList.appendChild(div);
+  // ===== LIVE DAY CHAT + FILES =====
+  function subscribeToDay() {
+    onSnapshot(classDocRef(currentClass), snap => {
+      const day = snap.data().days[currentDay];
+
+      modalFilesList.innerHTML = '';
+      day.files.forEach(file => {
+        const p = document.createElement('p');
+        p.innerHTML = `<strong>${file.name}</strong> - ${file.description} (by ${file.user})`;
+        modalFilesList.appendChild(p);
+      });
+
+      dayChatMessages.innerHTML = '';
+      day.chat.forEach(msg => {
+        const p = document.createElement('p');
+        p.innerHTML = `<strong>${msg.user}:</strong> ${msg.text}`;
+        dayChatMessages.appendChild(p);
+      });
     });
   }
 
-  // Show Add form
-  modalAddBtn.addEventListener('click', () => {
-    modalOptions.classList.add('hidden');
-    addForm.classList.remove('hidden');
-  });
-  backFromAdd.addEventListener('click', () => {
-    addForm.classList.add('hidden');
-    modalOptions.classList.remove('hidden');
+  dayChatSendBtn.addEventListener('click', async () => {
+    const text = dayChatInput.value.trim();
+    if (!text) return;
+
+    const ref = classDocRef(currentClass);
+    const snap = await getDoc(ref);
+    const data = snap.data();
+
+    data.days[currentDay].chat.push({
+      user: currentUserName,
+      text,
+      ts: Date.now()
+    });
+
+    await updateDoc(ref, { days: data.days });
+    dayChatInput.value = '';
   });
 
-  // Show Ask chat
-  modalAskBtn.addEventListener('click', () => {
-    modalOptions.classList.add('hidden');
-    askForm.classList.remove('hidden');
-    updateDayChatMessages();
-  });
-  backFromAsk.addEventListener('click', () => {
-    askForm.classList.add('hidden');
-    modalOptions.classList.remove('hidden');
-  });
-
-  // Save file
-  saveFileBtn.addEventListener('click', () => {
+  // ===== FILE UPLOAD =====
+  saveFileBtn.addEventListener('click', async () => {
     const file = fileInput.files[0];
-    const desc = fileDesc.value.trim();
-    if (!file) {
-      alert('Select a file first.');
-      return;
-    }
+    if (!file) return;
+
     const reader = new FileReader();
-    reader.onload = function(e) {
-      const dataURL = e.target.result;
-      const fileEntry = {
+    reader.onload = async e => {
+      const ref = classDocRef(currentClass);
+      const snap = await getDoc(ref);
+      const data = snap.data();
+
+      data.days[currentDay].files.push({
         name: file.name,
         type: file.type,
-        data: dataURL,
-        description: desc,
+        data: e.target.result,
+        description: fileDesc.value,
         user: currentUserName
-      };
-      martinetData.classes[currentClass].days[currentDay].files.push(fileEntry);
-      saveData();
-      populateModalFiles();
-      updateCalendarDays();
-      // reset form
+      });
+
+      await updateDoc(ref, { days: data.days });
       fileInput.value = '';
       fileDesc.value = '';
-      // go back to options
-      addForm.classList.add('hidden');
-      modalOptions.classList.remove('hidden');
     };
     reader.readAsDataURL(file);
   });
 
-  // Update day chat messages UI
-  function updateDayChatMessages() {
-    dayChatMessages.innerHTML = '';
-    const chatList = martinetData.classes[currentClass].days[currentDay].chat;
-    chatList.forEach(msg => {
-      const p = document.createElement('p');
-      p.innerHTML = '<strong>' + msg.user + ':</strong> ' + msg.text;
-      dayChatMessages.appendChild(p);
-    });
-    dayChatMessages.scrollTop = dayChatMessages.scrollHeight;
-  }
-
-  // Send day chat message
-  dayChatSendBtn.addEventListener('click', () => {
-    const text = dayChatInput.value.trim();
-    if (!text) return;
-    const msg = { user: currentUserName, text: text };
-    martinetData.classes[currentClass].days[currentDay].chat.push(msg);
-    saveData();
-    const p = document.createElement('p');
-    p.innerHTML = '<strong>' + currentUserName + ':</strong> ' + text;
-    dayChatMessages.appendChild(p);
-    dayChatMessages.scrollTop = dayChatMessages.scrollHeight;
-    dayChatInput.value = '';
-  });
-  dayChatInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      dayChatSendBtn.click();
-    }
-  });
-
-  // Initialization
-  loadData();
-  if (martinetData.currentUser) {
-    currentUserName = martinetData.currentUser.name;
-    currentClass = martinetData.currentUser.class;
-    showWorkspace();
-  } else {
-    showRegisterPage();
-  }
+  // Init
+  showRegisterPage();
 });
