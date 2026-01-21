@@ -59,13 +59,13 @@
   </div>
 
   <!-- ================= WORKSPACE ================= -->
-  <!-- app.js expects this to EXIST even if empty -->
+  <!-- app.js expects this to EXIST even if empty in the firebase single-page version.
+       For the localStorage flow we keep this but the actual class UI is in class.html -->
   <div id="workspace" class="hidden"></div>
 
   <!-- ================= SCRIPTS ================= -->
-  <!-- ORDER MATTERS -->
-  <script type="module" src="firebase.js"></script>
-  <script type="module" src="app.js"></script>
+  <!-- Load the localStorage register script -->
+  <script src="register.js"></script>
 
 </body>
 </html>
