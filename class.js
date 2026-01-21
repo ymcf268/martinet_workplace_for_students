@@ -1,5 +1,4 @@
-// class.js (updated to add site-wide private chat and 2s send delay)
-// + storage-event driven live updates for class chat (per-class)
+// class.js (localStorage multi-page)
 (function(){
   const HOUR_START = 8;
   const HOUR_COUNT = 11; // 8..18 inclusive
@@ -93,6 +92,7 @@
   // render hours column
   function renderHours(){
     const hoursEl = document.querySelector('.hours');
+    if(!hoursEl) return;
     hoursEl.innerHTML = '';
     for(let i=0;i<HOUR_COUNT;i++){
       const hr = document.createElement('div');
@@ -106,6 +106,7 @@
   function collectUniquePosts(sourceCls) {
     const map = new Map();
     function makeKey(p){
+      if(!p) return Math.random().toString(36).slice(2);
       if(p.id) return `id:${p.id}`;
       if(p.created) return `created:${p.created}`;
       return `fk:${p.date || ''}|${p.time || ''}|${p.user || ''}|${p.desc || ''}`;
@@ -167,6 +168,12 @@
       const evs = body.querySelectorAll('.event-block');
       evs.forEach(e=>e.remove());
     });
+
+    // reload data from storage
+    const stored = read(dataKey) || { classes: {} };
+    if(stored.classes && stored.classes[clsName]) {
+      Object.assign(cls, stored.classes[clsName]);
+    }
 
     const posts = collectUniquePosts(cls);
 
@@ -270,7 +277,6 @@
     const txt = (classChatInput.value || '').trim(); if(!txt) return;
     const now = new Date();
     const displayTime = now.toLocaleString();
-    // create entry but don't write immediately
     const entry = { user: user.name, text: txt, time: displayTime };
     classChatInput.value = '';
 
@@ -291,9 +297,9 @@
       if(!cur.classes[clsName].members) cur.classes[clsName].members = [];
       if(!cur.classes[clsName].members.includes(user.name)) cur.classes[clsName].members.push(user.name);
       write(dataKey, cur);
-      // re-render from storage (will remove sendingEl when render runs)
+
+      // reload local structures from storage
       const nd = read(dataKey);
-      // update local data objects
       Object.assign(data, nd);
       if(data.classes && data.classes[clsName]) Object.assign(cls, data.classes[clsName]);
       renderClassChat();
@@ -304,7 +310,7 @@
   });
   classChatInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter') classChatSend.click(); });
 
-  // month modal fixed
+  // month modal
   openMonth.addEventListener('click', ()=> {
     renderMonthGrid();
     monthModal.style.display = 'grid';
@@ -335,9 +341,10 @@
   function allStudents(){
     // collect members arrays across classes, fallback to scanning chat/post authors
     const set = new Set();
-    if(data.classes){
-      Object.keys(data.classes).forEach(cn=>{
-        const c = data.classes[cn];
+    const cur = read(dataKey) || { classes: {} };
+    if(cur.classes){
+      Object.keys(cur.classes).forEach(cn=>{
+        const c = cur.classes[cn];
         if(Array.isArray(c.members)){
           c.members.forEach(n => { if(n) set.add(n); });
         }
@@ -415,7 +422,6 @@
     populatePrivateSelect();
     renderAllStudentsList();
     privateChatModal.style.display = 'grid';
-    // clear old messages placeholder
     privateChatMessages.innerHTML = '<div class="muted small">Select a student to chat with.</div>';
   });
   closePrivateChat.addEventListener('click', ()=> privateChatModal.style.display = 'none');
@@ -450,9 +456,9 @@
       cur.privateChats[key].push(entry);
       // ensure both users present as members somewhere
       if(!cur.classes) cur.classes = {};
-      if(cur.classes[clsName] && Array.isArray(cur.classes[clsName].members) && !cur.classes[clsName].members.includes(user.name)){
-        cur.classes[clsName].members.push(user.name);
-      }
+      if(!cur.classes[clsName]) cur.classes[clsName] = { posts: [], classChat: [], days: {}, privateChats:{}, members: [] };
+      if(!Array.isArray(cur.classes[clsName].members)) cur.classes[clsName].members = [];
+      if(!cur.classes[clsName].members.includes(user.name)) cur.classes[clsName].members.push(user.name);
       write(dataKey, cur);
       // reload messages
       loadPrivateChatWith(partner);
@@ -486,33 +492,25 @@
     }
   }, 800);
 
-  // ---------- NEW: storage event listener for immediate cross-tab updates ----------
-  // This reacts to changes in localStorage from other tabs (more immediate than polling).
+  // storage event listener for cross-tab updates
   window.addEventListener('storage', (ev) => {
     if(!ev) return;
-    // Only react to our data key
     if(ev.key !== dataKey) return;
     try {
       const newVal = ev.newValue ? JSON.parse(ev.newValue) : null;
       if(!newVal) return;
-      // If the class exists in the new value, compare its classChat to our current one
       const newCls = newVal.classes && newVal.classes[clsName] ? newVal.classes[clsName] : null;
       if(!newCls) return;
 
-      // Fast compare by JSON of classChat (fine for this use-case)
       const oldChat = JSON.stringify(cls.classChat || []);
       const newChat = JSON.stringify(newCls.classChat || []);
       if(oldChat !== newChat){
-        // update local structures and render only chat (plus member list)
         Object.assign(data, newVal);
         if(data.classes && data.classes[clsName]) Object.assign(cls, data.classes[clsName]);
         renderClassChat();
         renderClassMembers();
-        // do not force full page re-render unless necessary
       }
 
-      // Optionally update posts/members if those changed (keeps UI consistent)
-      // Compare members
       const oldMembers = JSON.stringify(cls.members || []);
       const newMembers = JSON.stringify(newCls.members || []);
       if(oldMembers !== newMembers){
@@ -523,10 +521,8 @@
 
     } catch(e){
       // ignore parse errors
-      // console.warn('storage parse error', e);
     }
   });
-  // -------------------------------------------------------------------------------
 
   // initial render
   renderWeek();
