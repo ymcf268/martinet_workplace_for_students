@@ -6,42 +6,64 @@
   <title>Martinet Work place — Register</title>
   <link rel="stylesheet" href="styles.css">
 </head>
+
 <body class="dark center">
 
-  <main class="card register-card">
-    <h1 class="brand">Martinet Work place</h1>
-    <p class="muted">Register with a name to join your class.</p>
+  <!-- ================= REGISTER PAGE ================= -->
+  <div id="registerPage">
+    <main class="card register-card">
+      <h1 class="brand">Martinet Work place</h1>
+      <p class="muted">Register with a name to join your class.</p>
 
-    <!-- NAME -->
-    <label class="small">Name</label>
-    <input
-      id="nameInput"
-      class="input"
-      placeholder="Your name or nickname"
-      autocomplete="off"
-    />
+      <!-- NAME -->
+      <label class="small">Name</label>
+      <input
+        id="nameInput"
+        class="input"
+        placeholder="Your name or nickname"
+        autocomplete="off"
+      />
 
-    <!-- CLASS -->
-    <label class="small" style="margin-top:12px;">Class</label>
-    <input
-      id="classInput"
-      class="input"
-      placeholder="e.g. 9B, 10A, Class-1"
-      autocomplete="off"
-    />
+      <!-- CLASS SELECT -->
+      <label class="small" style="margin-top:12px;">Class</label>
+      <select id="classInput" class="input">
+        <option value="">Select your class</option>
 
-    <div class="row" style="margin-top:14px; gap:10px; width:100%">
-      <button id="registerBtn" class="btn primary" style="flex:1">
-        Join
-      </button>
-    </div>
+        <optgroup label="9th grade">
+          <option value="9vg1">9vg1</option>
+          <option value="9vg2">9vg2</option>
+          <option value="9vg3">9vg3</option>
+          <option value="9vg4">9vg4</option>
+          <option value="9vg5">9vg5</option>
+        </optgroup>
 
-    <p class="muted small" style="margin-top:18px; text-align:center; opacity:0.6">
-      Made by Yusuf Mikdad Ceylan
-    </p>
-  </main>
+        <optgroup label="10th grade">
+          <option value="10vg1">10vg1</option>
+          <option value="10vg2">10vg2</option>
+          <option value="10vg3">10vg3</option>
+          <option value="10vg4">10vg4</option>
+          <option value="10vg5">10vg5</option>
+        </optgroup>
+      </select>
 
-  <!-- SCRIPTS (ORDER MATTERS) -->
+      <div class="row" style="margin-top:14px; gap:10px; width:100%">
+        <button id="registerBtn" class="btn primary" style="flex:1">
+          Join
+        </button>
+      </div>
+
+      <p class="muted small" style="margin-top:18px; text-align:center; opacity:0.6">
+        Made by Yusuf Mikdad Ceylan
+      </p>
+    </main>
+  </div>
+
+  <!-- ================= WORKSPACE ================= -->
+  <!-- app.js expects this to EXIST even if empty -->
+  <div id="workspace" class="hidden"></div>
+
+  <!-- ================= SCRIPTS ================= -->
+  <!-- ORDER MATTERS -->
   <script type="module" src="firebase.js"></script>
   <script type="module" src="app.js"></script>
 
