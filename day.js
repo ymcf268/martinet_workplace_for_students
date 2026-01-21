@@ -28,6 +28,7 @@
   const dataKey = 'mw_data';
   const data = read(dataKey) || { classes: {} };
   if(!data.classes[user.class]) data.classes[user.class] = { posts: [], classChat: [], days: {}, privateChats:{}, members: [] };
+  if(!data.classes[user.class].days) data.classes[user.class].days = {};
   if(!data.classes[user.class].days[date]) data.classes[user.class].days[date] = { posts: [], chat: [] };
   write(dataKey, data);
 
@@ -61,7 +62,7 @@
       created: Date.now()
     };
 
-    const cur = read(dataKey);
+    const cur = read(dataKey) || { classes: {} };
     if(!cur.classes[cls]) cur.classes[cls] = { posts: [], classChat: [], days: {}, privateChats:{}, members: [] };
     // push to class posts (global) and day node
     cur.classes[cls].posts = cur.classes[cls].posts || [];
@@ -84,6 +85,10 @@
   function loadDayChat(){
     dayChat.innerHTML = '';
     const cur = read(dataKey);
+    if(!cur || !cur.classes || !cur.classes[user.class] || !cur.classes[user.class].days || !cur.classes[user.class].days[date]) {
+      dayChat.innerHTML = '<div class="muted small">No questions yet.</div>';
+      return;
+    }
     const list = (cur.classes[user.class].days[date].chat || []);
     if(list.length === 0) dayChat.innerHTML = '<div class="muted small">No questions yet.</div>';
     list.forEach(m=>{
@@ -96,7 +101,11 @@
 
   dayChatSend.addEventListener('click', ()=>{
     const txt = (dayChatInput.value || '').trim(); if(!txt) return;
-    const cur = read(dataKey);
+    const cur = read(dataKey) || { classes: {} };
+    if(!cur.classes[user.class]) cur.classes[user.class] = { posts: [], classChat: [], days: {}, privateChats:{}, members: [] };
+    if(!cur.classes[user.class].days) cur.classes[user.class].days = {};
+    if(!cur.classes[user.class].days[date]) cur.classes[user.class].days[date] = { posts: [], chat: [] };
+
     const entry = { user: user.name, text: txt, time: (new Date()).toLocaleString() };
     cur.classes[user.class].days[date].chat.push(entry);
     write(dataKey, cur);
@@ -106,7 +115,6 @@
   dayChatInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter') dayChatSend.click(); });
 
   // initial view
-  // show add by default
   showAddForm();
   loadDayChat();
 })();
