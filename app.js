@@ -117,6 +117,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 
   // ===== REGISTRATION =====
   registerBtn.addEventListener('click', async () => {
+  await ensureAuth(); // 🔥 REQUIRED
     const name = nameInput.value.trim();
     const className = classInput.value.trim();
     if (!name || !className) {
