@@ -16,6 +16,52 @@ document.addEventListener('DOMContentLoaded', async function() {
   // ===== FIREBASE AUTH (ADDED) =====
   await ensureAuth();
 
+  // ===== FIREBASE HELPERS (DO NOT REMOVE) =====
+import {
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  arrayUnion,
+  onSnapshot
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+import { db, ensureAuth } from "./firebase.js";
+
+function classDocRef(className) {
+  return doc(db, "classes", className);
+}
+
+async function createClassIfNotExists(className) {
+  const ref = classDocRef(className);
+  const snap = await getDoc(ref);
+
+  if (!snap.exists()) {
+    await setDoc(ref, {
+      members: [],
+      classChat: [],
+      days: {
+        Monday: { files: [], chat: [] },
+        Tuesday: { files: [], chat: [] },
+        Wednesday: { files: [], chat: [] },
+        Thursday: { files: [], chat: [] },
+        Friday: { files: [], chat: [] }
+      }
+    });
+  }
+}
+
+async function loadClassFromFirestore(className) {
+  const ref = classDocRef(className);
+
+  onSnapshot(ref, (snap) => {
+    if (!snap.exists()) return;
+    martinetData.classes[className] = snap.data();
+    loadClassChat();
+    updateCalendarDays();
+  });
+}
+
   // Data structure
   let martinetData = { classes: {}, currentUser: null };
   let currentClass = '';
