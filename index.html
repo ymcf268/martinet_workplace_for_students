@@ -2,70 +2,51 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Martinet Work place — Register</title>
-  <link rel="stylesheet" href="styles.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Martinet Work Place</title>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 
 <body class="dark center">
 
-  <!-- ================= REGISTER PAGE ================= -->
-  <div id="registerPage">
-    <main class="card register-card">
-      <h1 class="brand">Martinet Work place</h1>
-      <p class="muted">Register with a name to join your class.</p>
+  <!-- REGISTER -->
+  <div id="registerPage" class="card register-card">
+    <h1 class="brand">Martinet Work Place</h1>
+    <p class="muted">Enter your name and class</p>
 
-      <!-- NAME -->
-      <label class="small">Name</label>
-      <input
-        id="nameInput"
-        class="input"
-        placeholder="Your name or nickname"
-        autocomplete="off"
-      />
+    <label class="small">Name</label>
+    <input id="nameInput" class="input" placeholder="Your name" />
 
-      <!-- CLASS SELECT -->
-      <label class="small" style="margin-top:12px;">Class</label>
-      <select id="classInput" class="input">
-        <option value="">Select your class</option>
+    <label class="small" style="margin-top:12px;">Class</label>
+    <select id="classInput" class="input">
+      <option value="">Select class</option>
+      <option value="9vg1">9vg1</option>
+      <option value="9vg2">9vg2</option>
+      <option value="9vg3">9vg3</option>
+      <option value="10vg1">10vg1</option>
+      <option value="10vg2">10vg2</option>
+    </select>
 
-        <optgroup label="9th grade">
-          <option value="9vg1">9vg1</option>
-          <option value="9vg2">9vg2</option>
-          <option value="9vg3">9vg3</option>
-          <option value="9vg4">9vg4</option>
-          <option value="9vg5">9vg5</option>
-        </optgroup>
-
-        <optgroup label="10th grade">
-          <option value="10vg1">10vg1</option>
-          <option value="10vg2">10vg2</option>
-          <option value="10vg3">10vg3</option>
-          <option value="10vg4">10vg4</option>
-          <option value="10vg5">10vg5</option>
-        </optgroup>
-      </select>
-
-      <div class="row" style="margin-top:14px; gap:10px; width:100%">
-        <button id="registerBtn" class="btn primary" style="flex:1">
-          Join
-        </button>
-      </div>
-
-      <p class="muted small" style="margin-top:18px; text-align:center; opacity:0.6">
-        Made by Yusuf Mikdad Ceylan
-      </p>
-    </main>
+    <button id="registerBtn" class="btn primary" style="margin-top:16px">
+      Enter workplace
+    </button>
   </div>
 
-  <!-- ================= WORKSPACE ================= -->
-  <!-- app.js expects this to EXIST even if empty in the firebase single-page version.
-       For the localStorage flow we keep this but the actual class UI is in class.html -->
-  <div id="workspace" class="hidden"></div>
+  <!-- WORKSPACE -->
+  <div id="workspace" class="hidden">
+    <div class="card" style="width:100%; max-width:900px">
+      <h2 id="classTitle"></h2>
+      <div class="muted">Signed in as <b id="userNameDisplay"></b></div>
 
-  <!-- ================= SCRIPTS ================= -->
-  <!-- Load the localStorage register script -->
-  <script src="register.js"></script>
+      <div class="messages" id="classMessages"></div>
 
+      <div class="chat-input">
+        <input id="classChatInput" class="input" placeholder="Message class..." />
+        <button id="classSendBtn" class="btn primary">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="app.js"></script>
 </body>
 </html>
